@@ -1,0 +1,22 @@
+services:
+    mysql:
+        image: mariadb:10.5
+        volumes:
+            - mysql-db:/var/lib/mysql
+        environment:
+            MYSQL_USER: epgstation
+            MYSQL_PASSWORD: epgstation
+            MYSQL_ROOT_PASSWORD: epgstation
+            MYSQL_DATABASE: epgstation
+        ports:
+            # 本番は3306:3306. dev機ではWindows側Docker Desktopの別project (itrex-services) が3306を使用中のため3307へ変更
+            - "3307:3306"
+        command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --performance-schema=false --expire_logs_days=1 # for mariadb
+        restart: always
+        logging:
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+volumes:
+    mysql-db:
