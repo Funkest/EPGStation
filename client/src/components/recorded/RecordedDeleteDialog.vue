@@ -101,8 +101,9 @@ export default class RecordedDeleteDialog extends Vue {
         this.dialogModel = false;
 
         // 削除対象が0件の場合は早期リターンをする
+        // ただし video file を持たない録画 (失敗録画等) は録画情報自体の削除として扱う
         let isNoDelete = false;
-        isNoDelete = this.videoFiles.every(v => v.isDelete === false);
+        isNoDelete = this.videoFiles.length > 0 && this.videoFiles.every(v => v.isDelete === false);
         if (isNoDelete) {
             return;
         }
