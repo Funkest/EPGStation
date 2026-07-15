@@ -391,10 +391,10 @@ export interface RecordedItem {
 export type RecordedEndStatus = 0 | 1 | 2 | 3;
 
 /**
- * 録画開始 (準備) 段階の失敗理由
- * 0: 不明 (録画中の失敗を含む), 1: tuner 不足, 2: 準備段階のその他失敗
+ * 録画失敗理由
+ * 0: 不明, 1: tuner 不足, 2: 準備段階のその他失敗, 3: 録画中の tuner 剥奪の疑い (推定)
  */
-export type RecordedFailReason = 0 | 1 | 2;
+export type RecordedFailReason = 0 | 1 | 2 | 3;
 
 /**
  * VideoFile

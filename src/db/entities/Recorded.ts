@@ -33,6 +33,7 @@ export enum RecordedFailReason {
     UNKNOWN = 0,
     TUNER_SHORTAGE = 1, // tuner 不足 (Mirakurun が stream 要求を 503 で拒否)
     PREP_ERROR_OTHER = 2, // 準備段階のその他失敗 (Mirakurun 接続不能等)
+    TUNER_TAKEOVER_PRESUMED = 3, // 録画中の tuner 剥奪の疑い (失敗直後の tuner 使用状況からの推定. 確定情報ではない)
 }
 
 @Entity()

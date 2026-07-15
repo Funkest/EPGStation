@@ -1092,6 +1092,14 @@ class ReservationManageModel implements IReservationManageModel {
      * @return string
      */
     private createReserveKey(reserve: Reserve): string {
+        // 手動時刻指定予約 (programId, ruleId とも null) は id で識別する.
+        // 時刻と物理 channel による key では同一時刻・同一物理 channel の別 service 予約で
+        // key が衝突し, 差分から漏れて削除不能になるため.
+        // (手動時刻指定予約は再生成されず, 差分計算の新旧両辺に同一 id で現れる)
+        if (reserve.programId === null && reserve.ruleId === null) {
+            return `time-${reserve.id}`;
+        }
+
         return (
             (reserve.programId === null
                 ? `${reserve.startAt}-${reserve.endAt}-${reserve.channel}`

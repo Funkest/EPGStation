@@ -14,9 +14,11 @@ const END_STATUS_FAILED: apid.RecordedEndStatus = 2;
 const END_STATUS_ABORTED: apid.RecordedEndStatus = 3;
 
 // RecordedItem.failReason (server 側 RecordedFailReason) の表示文字列. 0 (不明) は表示しない
+// 3 は heuristic による推定のため「推定」を明示する
 const FAIL_REASON_TEXT: { [key: number]: string } = {
     1: 'チューナー不足',
     2: '録画準備失敗',
+    3: 'チューナー剥奪 (推定)',
 };
 
 @injectable()

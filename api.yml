@@ -1094,9 +1094,9 @@ components:
                     type: integer
                     enum: [0, 1, 2, 3]
                 failReason:
-                    description: 録画開始 (準備) 段階の失敗理由 (0 不明, 1 tuner不足, 2 準備段階のその他失敗)
+                    description: 録画失敗理由 (0 不明, 1 tuner不足, 2 準備段階のその他失敗, 3 録画中のtuner剥奪の疑い (推定))
                     type: integer
-                    enum: [0, 1, 2]
+                    enum: [0, 1, 2, 3]
 
         CreateNewRecordedOption:
             description: 新規追加する録画番組情報

@@ -136,6 +136,26 @@ export default class RecordedDB implements IRecordedDB {
     }
 
     /**
+     * 指定した録画情報の failReason を更新する
+     * @param recordedId: apid.RecordedId
+     * @param failReason: number (RecordedFailReason)
+     * @return Promise<void>
+     */
+    public async setFailReason(recordedId: apid.RecordedId, failReason: number): Promise<void> {
+        const connection = await this.op.getConnection();
+        const queryBuilder = connection
+            .createQueryBuilder()
+            .update(Recorded)
+            .set({
+                failReason: failReason,
+            })
+            .where({ id: recordedId });
+        await this.promieRetry.run(() => {
+            return queryBuilder.execute();
+        });
+    }
+
+    /**
      * 指定した drop log file id を削除する
      * @param dropLogFileId: apid,DropLogFileId
      * @return Promise<void>

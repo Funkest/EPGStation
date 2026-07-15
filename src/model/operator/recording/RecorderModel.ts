@@ -580,8 +580,42 @@ class RecorderModel implements IRecorderModel {
             return;
         }
 
+        // 録画中失敗の原因を tuner 使用状況から推定する (entry が残った場合のみ)
+        if (recorded !== null) {
+            await this.presumeRecordingFailReason(recorded).catch(e => {
+                this.log.system.error(`presume fail reason error: ${this.recordedId}`);
+                this.log.system.error(e);
+            });
+        }
+
         // 録画終了処理失敗を通知
         this.recordingEvent.emitRecordingFailed(this.reserve, recorded, isRemovedEmptyRecorded);
+    }
+
+    /**
+     * 録画中失敗の原因推定 (heuristic)
+     * 失敗直後の Mirakurun の tuner 使用状況を照会し, 対象波種別の tuner が
+     * すべて使用中であれば「tuner 剥奪の疑い (推定)」として failReason を記録する.
+     * 確定情報ではないため UI 側では推定であることを明示する
+     * @param recorded: Recorded 残存した録画情報
+     */
+    private async presumeRecordingFailReason(recorded: Recorded): Promise<void> {
+        const tuners = await this.mirakurunClientModel.getClient().getTuners();
+        const capableTuners = tuners.filter(tuner => {
+            return (tuner.types as string[]).indexOf(this.reserve.channelType) !== -1;
+        });
+        if (capableTuners.length === 0) {
+            return;
+        }
+
+        const isAllBusy = capableTuners.every(tuner => tuner.isUsing === true);
+        if (isAllBusy === false) {
+            return;
+        }
+
+        this.log.system.info(`presumed tuner takeover: reserveId: ${this.reserve.id}, recordedId: ${recorded.id}`);
+        await this.recordedDB.setFailReason(recorded.id, RecordedFailReason.TUNER_TAKEOVER_PRESUMED);
+        recorded.failReason = RecordedFailReason.TUNER_TAKEOVER_PRESUMED;
     }
 
     /**
