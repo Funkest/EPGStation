@@ -26,7 +26,11 @@
                         </div>
                         <div class="content-description">
                             <div class="title font-weight-bold">
+                                <v-chip v-if="recorded.display.isFailed === true" class="mr-1" label small color="error">失敗</v-chip>
                                 {{ recorded.display.name }}
+                            </div>
+                            <div v-if="typeof recorded.display.failReasonText !== 'undefined'" class="subtitle-2 font-weight-bold error--text">
+                                {{ recorded.display.failReasonText }}
                             </div>
                             <div class="subtitle-1 my-1">
                                 {{ recorded.display.channelName }}

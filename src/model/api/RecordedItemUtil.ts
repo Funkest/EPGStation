@@ -26,6 +26,8 @@ export default class RecordedItemUtil implements IRecordedItemUtil {
             isRecording: recorded.isRecording,
             isEncoding: typeof encodeIndex[recorded.id] !== 'undefined',
             isProtected: recorded.isProtected,
+            endStatus: recorded.endStatus as apid.RecordedEndStatus,
+            failReason: recorded.failReason as apid.RecordedFailReason,
         };
 
         if (recorded.ruleId !== null) {

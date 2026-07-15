@@ -14,6 +14,27 @@ import RecordedTag from './RecordedTag';
 import Thumbnail from './Thumbnail';
 import VideoFile from './VideoFile';
 
+/**
+ * Recorded.endStatus の値
+ * UNKNOWN は録画中および本 column 追加以前に作成された既存行を表す (v2.10.0 の挙動と等価に扱う)
+ */
+export enum RecordedEndStatus {
+    UNKNOWN = 0,
+    SUCCESS = 1,
+    FAILED = 2,
+    ABORTED = 3, // 明示的な録画中断用に予約
+}
+
+/**
+ * Recorded.failReason の値
+ * 録画開始 (準備) 段階の失敗理由の分類. 録画中の失敗は UNKNOWN のまま
+ */
+export enum RecordedFailReason {
+    UNKNOWN = 0,
+    TUNER_SHORTAGE = 1, // tuner 不足 (Mirakurun が stream 要求を 503 で拒否)
+    PREP_ERROR_OTHER = 2, // 準備段階のその他失敗 (Mirakurun 接続不能等)
+}
+
 @Entity()
 export default class Recorded extends BaseEntity {
     @PrimaryGeneratedColumn({
@@ -184,6 +205,18 @@ export default class Recorded extends BaseEntity {
 
     @Column()
     public isRecording!: boolean;
+
+    @Column({
+        type: 'smallint',
+        default: RecordedEndStatus.UNKNOWN,
+    })
+    public endStatus!: number; // RecordedEndStatus
+
+    @Column({
+        type: 'smallint',
+        default: RecordedFailReason.UNKNOWN,
+    })
+    public failReason!: number; // RecordedFailReason
 
     @OneToMany(() => VideoFile, videoFile => videoFile.recorded)
     public videoFiles?: VideoFile[];

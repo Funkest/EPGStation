@@ -12,7 +12,11 @@
                 </thead>
                 <tbody>
                     <tr v-for="item in items" v-bind:key="item.id" v-on:click="gotoDetail(item)" v-bind:class="{ 'selected-color': item.isSelected === true }">
-                        <td>{{ item.display.name }}</td>
+                        <td>
+                            <v-chip v-if="item.display.isFailed === true" class="mr-1" label x-small color="error">失敗</v-chip>
+                            <span>{{ item.display.name }}</span>
+                            <span v-if="typeof item.display.failReasonText !== 'undefined'" class="caption error--text ml-1">{{ item.display.failReasonText }}</span>
+                        </td>
                         <td>{{ item.display.channelName }}</td>
                         <td>{{ item.display.shortTime }} ({{ item.display.duration }} m)</td>
                         <td class="menu">

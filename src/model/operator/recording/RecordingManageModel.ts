@@ -1,6 +1,7 @@
 import { inject, injectable } from 'inversify';
 import * as apid from '../../../../api';
 import * as mapid from '../../../../node_modules/mirakurun/api';
+import { RecordedEndStatus } from '../../../db/entities/Recorded';
 import IRecordedDB from '../../db/IRecordedDB';
 import IReserveDB from '../../db/IReserveDB';
 import IRecordingEvent from '../../event/IRecordingEvent';
@@ -18,6 +19,12 @@ interface RecordingIndex {
     [key: number]: IRecorderModel;
 }
 
+// 空 entry として削除された失敗録画の予約ごとの回数
+// (行が削除され recordedDB.findReserveId で数えられない分を retry over 判定のために補完する)
+interface RemovedEmptyRecordedCntIndex {
+    [key: number]: number;
+}
+
 @injectable()
 class RecordingManageModel implements IRecordingManageModel {
     private log: ILogger;
@@ -29,6 +36,7 @@ class RecordingManageModel implements IRecordingManageModel {
     private recordingUtil: IRecordingUtilModel;
     private recordingEvent: IRecordingEvent;
     private recordingIndex: RecordingIndex = {};
+    private removedEmptyRecordedCntIndex: RemovedEmptyRecordedCntIndex = {};
 
     constructor(
         @inject('ILoggerModel') logger: ILoggerModel,
@@ -59,18 +67,28 @@ class RecordingManageModel implements IRecordingManageModel {
     private setEvents(): void {
         this.recordingEvent.setCancelPrepRecording(reserve => {
             this.deleteRecording(reserve.id);
+            delete this.removedEmptyRecordedCntIndex[reserve.id];
         });
 
         this.recordingEvent.setPrepRecordingFailed(reserve => {
             this.deleteRecording(reserve.id);
+            delete this.removedEmptyRecordedCntIndex[reserve.id];
         });
 
-        this.recordingEvent.setRecordingFailed(async reserve => {
+        this.recordingEvent.setRecordingFailed(async (reserve, _recorded, isRemovedEmptyRecorded) => {
             this.deleteRecording(reserve.id);
+
+            if (isRemovedEmptyRecorded === true) {
+                this.removedEmptyRecordedCntIndex[reserve.id] =
+                    (this.removedEmptyRecordedCntIndex[reserve.id] || 0) + 1;
+            }
 
             const recordeds = await this.recordedDB.findReserveId(reserve.id);
 
-            if (recordeds.length < 3) {
+            // 空 entry として削除された失敗分を Recorded 行数に加算して判定する
+            const failedCnt = recordeds.length + (this.removedEmptyRecordedCntIndex[reserve.id] || 0);
+
+            if (failedCnt < 3) {
                 // 録画を再設定
                 const recorder = await this.provider();
                 if (recorder.setTimer(reserve, false) === true) {
@@ -82,12 +100,19 @@ class RecordingManageModel implements IRecordingManageModel {
             } else {
                 // リトライ回数オーバー
                 this.log.system.error(`recording retry over: ${reserve.id}`);
+                delete this.removedEmptyRecordedCntIndex[reserve.id];
                 this.recordingEvent.emitRecordingRetryOver(reserve);
             }
         });
 
-        this.recordingEvent.setFinishRecording(reserve => {
+        this.recordingEvent.setFinishRecording((reserve, recorded) => {
             this.deleteRecording(reserve.id);
+
+            // 失敗時も recEnd 経由で本イベントが発行される (この後 recordingFailed が続く) ため,
+            // 正常終了時に限り空 entry 削除計数を消す
+            if (recorded.endStatus === RecordedEndStatus.SUCCESS) {
+                delete this.removedEmptyRecordedCntIndex[reserve.id];
+            }
         });
     }
 
@@ -139,6 +164,12 @@ class RecordingManageModel implements IRecordingManageModel {
                 continue;
             }
 
+            // 録画中のまま停止していたため失敗として記録する
+            await this.recordedDB.setEndStatus(r.id, RecordedEndStatus.FAILED).catch(err => {
+                this.log.system.error(`set end status error: ${r.id}`);
+                this.log.system.error(err);
+            });
+
             // reserveId がなかった
             if (r.reserveId === null) {
                 this.log.system.warn(`reserveId is null: ${r.reserveId}`);
@@ -179,7 +210,24 @@ class RecordingManageModel implements IRecordingManageModel {
             // 終了処理
             const newRecorded = await this.recordedDB.findId(r.id);
             if (newRecorded !== null) {
-                this.recordingEvent.emitFinishRecording(reserve, newRecorded, true);
+                // 録画 file が空 (0 byte or 欠損) なら録画情報を削除する (空の録画 entry の抑止)
+                const isRemovedEmptyRecorded = await this.recordingUtil.removeEmptyRecorded(newRecorded).catch(err => {
+                    this.log.system.error(`remove empty recorded error: ${r.id}`);
+                    this.log.system.error(err);
+
+                    return false;
+                });
+
+                if (isRemovedEmptyRecorded === false) {
+                    this.recordingEvent.emitFinishRecording(reserve, newRecorded, true);
+                } else {
+                    // entry は削除済みだが後続の予約処理 (手動予約の削除, rule の重複更新) は必要なので
+                    // videoFiles を空にした削除前の録画情報で通知する (thumbnail 作成・encode 追加は行われない)
+                    newRecorded.videoFiles = [];
+                    // tag 追加が削除済み recorded id を参照しないように tags を消した予約情報を渡す
+                    const reserveForEvent = Object.assign({}, reserve, { tags: null });
+                    this.recordingEvent.emitFinishRecording(reserveForEvent, newRecorded, true);
+                }
             }
         }
 
@@ -267,6 +315,8 @@ class RecordingManageModel implements IRecordingManageModel {
      * @return Promise<void>
      */
     public async cancel(reserveId: apid.ReserveId, isPlanToDelete: boolean): Promise<void> {
+        delete this.removedEmptyRecordedCntIndex[reserveId];
+
         const recording = this.recordingIndex[reserveId];
         if (typeof recording === 'undefined') {
             // 存在しないのでスルー

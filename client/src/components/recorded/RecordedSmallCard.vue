@@ -11,6 +11,7 @@
         ></v-img>
         <div v-on:click="gotoDetail" class="content pa-2 my-auto">
             <div class="d-flex align-center">
+                <v-chip v-if="item.display.isFailed === true" class="mt-1 mr-1 flex-shrink-0" label x-small color="error">失敗</v-chip>
                 <div class="text mt-1 subtitle-2 font-weight-bold">{{ item.display.name }}</div>
                 <div v-if="isEditMode === false" class="menu-wrap">
                     <RecordedItemMenu :recordedItem="item.recordedItem" v-on:stopEncode="stopEncode"></RecordedItemMenu>
@@ -18,6 +19,7 @@
             </div>
             <div class="text caption font-weight-light">{{ item.display.channelName }}</div>
             <div class="text caption font-weight-light">{{ item.display.time }} ({{ item.display.duration }} m)</div>
+            <div v-if="typeof item.display.failReasonText !== 'undefined'" class="text caption font-weight-bold error--text">{{ item.display.failReasonText }}</div>
 
             <div
                 v-if="isShowDropInfo === true && typeof item.display.drop !== 'undefined'"

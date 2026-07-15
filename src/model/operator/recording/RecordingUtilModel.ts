@@ -9,7 +9,9 @@ import FileUtil from '../../../util/FileUtil';
 import StrUtil from '../../../util/StrUtil';
 import IVideoUtil from '../../api/video/IVideoUtil';
 import IChannelDB from '../../db/IChannelDB';
+import IDropLogFileDB from '../../db/IDropLogFileDB';
 import IProgramDB from '../../db/IProgramDB';
+import IRecordedDB from '../../db/IRecordedDB';
 import IVideoFileDB from '../../db/IVideoFileDB';
 import IConfigFile, { RecordedDirInfo } from '../../IConfigFile';
 import IConfiguration from '../../IConfiguration';
@@ -26,6 +28,8 @@ class RecordingUtilModel implements IRecordingUtilModel {
     private channelDB: IChannelDB;
     private programDB: IProgramDB;
     private videoFileDB: IVideoFileDB;
+    private recordedDB: IRecordedDB;
+    private dropLogFileDB: IDropLogFileDB;
     private videoUtil: IVideoUtil;
 
     constructor(
@@ -35,6 +39,8 @@ class RecordingUtilModel implements IRecordingUtilModel {
         @inject('IChannelDB') channelDB: IChannelDB,
         @inject('IProgramDB') programDB: IProgramDB,
         @inject('IVideoFileDB') videoFileDB: IVideoFileDB,
+        @inject('IRecordedDB') recordedDB: IRecordedDB,
+        @inject('IDropLogFileDB') dropLogFileDB: IDropLogFileDB,
         @inject('IVideoUtil') videoUtil: IVideoUtil,
     ) {
         this.log = logger.getLogger();
@@ -43,6 +49,8 @@ class RecordingUtilModel implements IRecordingUtilModel {
         this.channelDB = channelDB;
         this.programDB = programDB;
         this.videoFileDB = videoFileDB;
+        this.recordedDB = recordedDB;
+        this.dropLogFileDB = dropLogFileDB;
         this.videoUtil = videoUtil;
     }
 
@@ -287,6 +295,70 @@ class RecordingUtilModel implements IRecordingUtilModel {
             this.log.system.error(`update file size error: ${videoFileId}`);
             this.log.system.error(err);
         }
+    }
+
+    /**
+     * 録画 file がすべて空 (0 byte または欠損) の録画情報を削除する (空の録画 entry の抑止)
+     * 1 byte 以上の実データを持つ file が 1 つでもあれば何もしない
+     * @param recorded: Recorded videoFiles が読み込まれた録画情報
+     * @return Promise<boolean> 削除した場合は true
+     */
+    public async removeEmptyRecorded(recorded: Recorded): Promise<boolean> {
+        const videoFiles = typeof recorded.videoFiles === 'undefined' ? [] : recorded.videoFiles;
+
+        // 実データを持つ file が 1 つでもあれば削除しない
+        const filePaths: string[] = [];
+        for (const videoFile of videoFiles) {
+            const filePath = await this.videoUtil.getFullFilePathFromId(videoFile.id);
+            if (filePath === null) {
+                continue;
+            }
+
+            const fileSize = await FileUtil.getFileSize(filePath).catch(() => null); // 欠損は 0 byte 扱い
+            if (fileSize !== null && fileSize > 0) {
+                return false;
+            }
+            if (fileSize !== null) {
+                // 欠損 file は unlink 対象にしない
+                filePaths.push(filePath);
+            }
+        }
+
+        this.log.system.info(`remove empty recorded: ${recorded.id}`);
+
+        // 空 file 削除 (失敗しても続行)
+        for (const filePath of filePaths) {
+            await FileUtil.unlink(filePath).catch(err => {
+                this.log.system.error(`failed to delete ${filePath}`);
+                this.log.system.error(err);
+            });
+        }
+
+        // DB から video file 情報削除
+        if (videoFiles.length > 0) {
+            await this.videoFileDB.deleteRecordedId(recorded.id).catch(err => {
+                this.log.system.error(`falied to delete video data: ${recorded.id}`);
+                this.log.system.error(err);
+            });
+        }
+
+        // DB から録画情報削除
+        await this.recordedDB.deleteOnce(recorded.id);
+
+        // drop log 削除 (recorded が外部キーで参照するため録画情報削除後に行う)
+        if (typeof recorded.dropLogFile !== 'undefined' && recorded.dropLogFile !== null) {
+            const dropLogFilePath = path.join(this.config.dropLog, recorded.dropLogFile.filePath);
+            await FileUtil.unlink(dropLogFilePath).catch(err => {
+                this.log.system.error(`failed to delete ${dropLogFilePath}`);
+                this.log.system.error(err);
+            });
+            await this.dropLogFileDB.deleteOnce(recorded.dropLogFile.id).catch(err => {
+                this.log.system.error(`failed to delete drop log data: ${recorded.dropLogFile?.id}`);
+                this.log.system.error(err);
+            });
+        }
+
+        return true;
     }
 
     public async formatFilePathString(format: string, src: Recorded | Reserve): Promise<string> {

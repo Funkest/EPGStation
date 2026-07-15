@@ -380,7 +380,21 @@ export interface RecordedItem {
     tags?: RecordedTag[];
     isEncoding: boolean;
     isProtected: boolean;
+    endStatus: RecordedEndStatus;
+    failReason: RecordedFailReason;
 }
+
+/**
+ * 録画終了時の状態
+ * 0: 不明 (録画中または endStatus 追加以前に作成された録画), 1: 正常終了, 2: 失敗, 3: 中断 (予約)
+ */
+export type RecordedEndStatus = 0 | 1 | 2 | 3;
+
+/**
+ * 録画開始 (準備) 段階の失敗理由
+ * 0: 不明 (録画中の失敗を含む), 1: tuner 不足, 2: 準備段階のその他失敗
+ */
+export type RecordedFailReason = 0 | 1 | 2;
 
 /**
  * VideoFile

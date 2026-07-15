@@ -116,6 +116,26 @@ export default class RecordedDB implements IRecordedDB {
     }
 
     /**
+     * 指定した録画情報の endStatus を更新する
+     * @param recordedId: apid.RecordedId
+     * @param endStatus: number (RecordedEndStatus)
+     * @return Promise<void>
+     */
+    public async setEndStatus(recordedId: apid.RecordedId, endStatus: number): Promise<void> {
+        const connection = await this.op.getConnection();
+        const queryBuilder = connection
+            .createQueryBuilder()
+            .update(Recorded)
+            .set({
+                endStatus: endStatus,
+            })
+            .where({ id: recordedId });
+        await this.promieRetry.run(() => {
+            return queryBuilder.execute();
+        });
+    }
+
+    /**
      * 指定した drop log file id を削除する
      * @param dropLogFileId: apid,DropLogFileId
      * @return Promise<void>

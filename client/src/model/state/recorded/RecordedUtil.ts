@@ -7,6 +7,15 @@ import IServerConfigModel from '../../serverConfig/IServerConfigModel';
 import Util from '../../../util/Util';
 import IRecordedUtil, { RecordedDisplayData } from './IRecordedUtil';
 
+// 録画失敗を表す RecordedItem.endStatus の値 (server 側 RecordedEndStatus.FAILED)
+const END_STATUS_FAILED: apid.RecordedEndStatus = 2;
+
+// RecordedItem.failReason (server 側 RecordedFailReason) の表示文字列. 0 (不明) は表示しない
+const FAIL_REASON_TEXT: { [key: number]: string } = {
+    1: 'チューナー不足',
+    2: '録画準備失敗',
+};
+
 @injectable()
 export default class RecordedUtil implements IRecordedUtil {
     private serverConfigModel: IServerConfigModel;
@@ -35,10 +44,15 @@ export default class RecordedUtil implements IRecordedUtil {
                 thumbnails: item.thumbnails,
                 videoFiles: item.videoFiles,
                 hasDrop: false,
+                isFailed: item.endStatus === END_STATUS_FAILED,
             },
             recordedItem: item,
             isSelected: false,
         };
+
+        if (result.display.isFailed === true && typeof FAIL_REASON_TEXT[item.failReason] !== 'undefined') {
+            result.display.failReasonText = FAIL_REASON_TEXT[item.failReason];
+        }
 
         // ストリーミング可能な videoFile を列挙する
         const config = this.serverConfigModel.getConfig();

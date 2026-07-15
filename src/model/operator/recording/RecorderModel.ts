@@ -7,7 +7,7 @@ import * as stream from 'stream';
 import * as mapid from '../../../../node_modules/mirakurun/api';
 import * as apid from '../../../../api';
 import DropLogFile from '../../../db/entities/DropLogFile';
-import Recorded from '../../../db/entities/Recorded';
+import Recorded, { RecordedEndStatus, RecordedFailReason } from '../../../db/entities/Recorded';
 import RecordedHistory from '../../../db/entities/RecordedHistory';
 import Reserve from '../../../db/entities/Reserve';
 import VideoFile from '../../../db/entities/VideoFile';
@@ -210,12 +210,54 @@ class RecorderModel implements IRecorderModel {
                 }, 1000 * 5);
             } else {
                 this.isPrepRecording = false;
+
+                // 準備失敗を明示するため file なし失敗 entry を作成する (最終試行の error で理由を分類)
+                // 試行中に録画 entry が作成済みの場合は二重になるため作成しない
+                if (this.recordedId === null) {
+                    await this.addPrepFailedRecorded(err).catch(e => {
+                        this.log.system.error(`add prep failed recorded error: ${this.reserve.id}`);
+                        this.log.system.error(e);
+                    });
+                }
+
                 // 録画準備失敗を通知
                 this.recordingEvent.emitPrepRecordingFailed(this.reserve);
             }
         } finally {
             this.abortController = null;
         }
+    }
+
+    /**
+     * 録画準備失敗を明示するための file なし失敗 entry を作成する
+     * @param err: Error 最終試行の error
+     */
+    private async addPrepFailedRecorded(err: Error): Promise<void> {
+        const recorded = await this.createRecorded();
+        recorded.isRecording = false;
+        recorded.endStatus = RecordedEndStatus.FAILED;
+        recorded.failReason = RecorderModel.classifyPrepError(err);
+        const recordedId = await this.recordedDB.insertOnce(recorded);
+        this.log.system.info(
+            `add prep failed recorded: reserveId: ${this.reserve.id}, recordedId: ${recordedId}, failReason: ${recorded.failReason}`,
+        );
+    }
+
+    /**
+     * 録画準備失敗の error を失敗理由へ分類する
+     * @param err: Error
+     * @return RecordedFailReason
+     */
+    private static classifyPrepError(err: Error): RecordedFailReason {
+        // mirakurun client は stream 系 API の非 2xx 応答を
+        // "Bad status respond (503 Service Unavailable)." という message の Error として throw する.
+        // status code は message からしか取得できない (mirakurun client 更新時は要確認)
+        const matches = /Bad status respond \((\d+)/.exec(typeof err?.message === 'string' ? err.message : '');
+        if (matches !== null && parseInt(matches[1], 10) === 503) {
+            return RecordedFailReason.TUNER_SHORTAGE;
+        }
+
+        return RecordedFailReason.PREP_ERROR_OTHER;
     }
 
     /**
@@ -482,7 +524,7 @@ class RecorderModel implements IRecorderModel {
                 );
                 await this.recFailed(err);
             } else {
-                await this.recEnd().catch(e => {
+                await this.recEnd(RecordedEndStatus.SUCCESS).catch(e => {
                     this.log.system.fatal(
                         `unexpected recEnd error: reserveId: ${this.reserve.id} recordedId: ${this.recordedId}`,
                     );
@@ -503,13 +545,14 @@ class RecorderModel implements IRecorderModel {
 
         // 録画終了処理
         this.isNeedDeleteReservation = false;
-        await this.recEnd().catch(e => {
+        await this.recEnd(RecordedEndStatus.FAILED).catch(e => {
             this.log.system.error(`recEnd error reserveId: ${this.reserve.id} recordedId: ${this.recordedId}`);
             this.log.system.error(e);
         });
 
         // 録画終了処理失敗を通知
         let recorded: Recorded | null = null;
+        let isRemovedEmptyRecorded = false;
         if (this.recordedId !== null) {
             try {
                 recorded = await this.recordedDB.findId(this.recordedId);
@@ -517,8 +560,21 @@ class RecorderModel implements IRecorderModel {
                 this.log.system.error(`reocrded is deleted: ${this.recordedId}`);
                 recorded = null;
             }
+
+            // 録画 file が空 (0 byte or 欠損) なら録画情報を削除する (空の録画 entry の抑止)
+            if (recorded !== null) {
+                isRemovedEmptyRecorded = await this.recordingUtil.removeEmptyRecorded(recorded).catch(e => {
+                    this.log.system.error(`remove empty recorded error: ${this.recordedId}`);
+                    this.log.system.error(e);
+
+                    return false;
+                });
+                if (isRemovedEmptyRecorded === true) {
+                    recorded = null;
+                }
+            }
         }
-        this.recordingEvent.emitRecordingFailed(this.reserve, recorded);
+        this.recordingEvent.emitRecordingFailed(this.reserve, recorded, isRemovedEmptyRecorded);
     }
 
     /**
@@ -606,8 +662,9 @@ class RecorderModel implements IRecorderModel {
 
     /**
      * 録画終了処理
+     * @param endStatus: RecordedEndStatus 録画終了時の状態
      */
-    private async recEnd(): Promise<void> {
+    private async recEnd(endStatus: RecordedEndStatus): Promise<void> {
         this.log.system.info(`start recEnd reserveId: ${this.reserve.id} recordedId: ${this.recordedId}`);
 
         // stream 停止
@@ -637,6 +694,12 @@ class RecorderModel implements IRecorderModel {
             this.log.system.info(`remove recording flag: ${this.recordedId}`);
             await this.recordedDB.removeRecording(this.recordedId);
             this.isRecording = false;
+
+            // 録画終了状態を記録
+            await this.recordedDB.setEndStatus(this.recordedId, endStatus).catch(err => {
+                this.log.system.error(`set end status error: ${this.recordedId}`);
+                this.log.system.error(err);
+            });
 
             // tmp に録画していた場合は移動する
             if (typeof this.config.recordedTmp !== 'undefined' && this.videoFileId !== null) {
