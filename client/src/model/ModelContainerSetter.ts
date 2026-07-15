@@ -23,6 +23,8 @@ import IStorageApiModel from './api/storage/IStorageApiModel';
 import StorageApiModel from './api/storage/StorageApiModel';
 import IStreamApiModel from './api/streams/IStreamApiModel';
 import StreamApiModel from './api/streams/StreamApiModel';
+import ITunerApiModel from './api/tuner/ITunerApiModel';
+import TunerApiModel from './api/tuner/TunerApiModel';
 import IThumbnailApiModel from './api/thumbnail/IThumbnailApiModel';
 import ThumbnailApiModel from './api/thumbnail/ThumbnailApiModel';
 import IVideoApiModel from './api/video/IVideoApiModel';
@@ -99,6 +101,8 @@ import ISnackbarState from './state/snackbar/ISnackbarState';
 import SnackbarState from './state/snackbar/SnackbarState';
 import IStorageState from './state/storage/IStorageState';
 import StorageState from './state/storage/StorageState';
+import ITunerStatusState from './state/tuner/ITunerStatusState';
+import TunerStatusState from './state/tuner/TunerStatusState';
 import AddEncodeSettingStorageModel from './storage/encode/AddEncodeSettingStorageModel';
 import { IAddEncodeSettingStorageModel } from './storage/encode/IAddEncodeSettingStorageModel';
 import GuideGenreSettingStorageModel from './storage/guide/GuideGenreSettingStorageModel';
@@ -157,6 +161,8 @@ export default (container: Container): void => {
     container.bind<IDropLogApiModel>('IDropLogApiModel').to(DropLogApiModel).inSingletonScope();
 
     container.bind<IStorageApiModel>('IStorageApiModel').to(StorageApiModel).inSingletonScope();
+
+    container.bind<ITunerApiModel>('ITunerApiModel').to(TunerApiModel).inSingletonScope();
 
     container.bind<IVersionApiModel>('IVersionApiModel').to(VersionApiModel).inSingletonScope();
 
@@ -251,6 +257,8 @@ export default (container: Container): void => {
     container.bind<IManualReserveState>('IManualReserveState').to(ManualReserveState).inSingletonScope();
 
     container.bind<IStorageState>('IStorageState').to(StorageState).inSingletonScope();
+
+    container.bind<ITunerStatusState>('ITunerStatusState').to(TunerStatusState).inSingletonScope();
 
     container.bind<IVersionState>('IVersionState').to(VersionState).inSingletonScope();
 

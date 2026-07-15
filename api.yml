@@ -1550,6 +1550,65 @@ components:
                     items:
                         $ref: '#/components/schemas/StorageItem'
 
+        TunerStatusUser:
+            description: チューナー使用者情報
+            type: object
+            required:
+                - id
+                - priority
+            properties:
+                id:
+                    description: 使用者 ID
+                    type: string
+                priority:
+                    description: 優先度
+                    type: integer
+                agent:
+                    description: 使用者の agent 文字列
+                    type: string
+
+        TunerStatusItem:
+            description: チューナー状態
+            type: object
+            required:
+                - index
+                - name
+                - types
+                - isAvailable
+                - isFree
+                - isUsing
+                - isFault
+                - users
+            properties:
+                index:
+                    description: チューナー番号
+                    type: integer
+                name:
+                    description: チューナー名
+                    type: string
+                types:
+                    description: 対応する放送波種別
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ChannelType'
+                isAvailable:
+                    description: 使用可能か
+                    type: boolean
+                isFree:
+                    description: 空いているか
+                    type: boolean
+                isUsing:
+                    description: 使用中か
+                    type: boolean
+                isFault:
+                    description: 障害状態か
+                    type: boolean
+                users:
+                    description: 使用者一覧
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TunerStatusUser'
+
         Error:
             type: object
             readOnly: true

@@ -28,6 +28,8 @@ import IScheduleApiModel from './api/schedule/IScheduleApiModel';
 import ScheduleApiModel from './api/schedule/ScheduleApiModel';
 import IStorageApiModel from './api/storage/IStorageApiModel';
 import StorageApiModel from './api/storage/StorageApiModel';
+import ITunerApiModel from './api/tuner/ITunerApiModel';
+import TunerApiModel from './api/tuner/TunerApiModel';
 import IStreamApiModel from './api/stream/IStreamApiModel';
 import StreamApiModel from './api/stream/StreamApiModel';
 import IThumbnailApiModel from './api/thumbnail/IThumbnailApiModel';
@@ -406,4 +408,6 @@ export const set = (container: Container): void => {
     container.bind<IStreamApiModel>('IStreamApiModel').to(StreamApiModel).inSingletonScope();
 
     container.bind<IStorageApiModel>('IStorageApiModel').to(StorageApiModel).inSingletonScope();
+
+    container.bind<ITunerApiModel>('ITunerApiModel').to(TunerApiModel).inSingletonScope();
 };

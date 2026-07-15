@@ -766,6 +766,29 @@ export interface StorageInfo {
 }
 
 /**
+ * チューナー使用者情報
+ */
+export interface TunerStatusUser {
+    id: string;
+    priority: number;
+    agent?: string;
+}
+
+/**
+ * チューナー状態
+ */
+export interface TunerStatusItem {
+    index: number;
+    name: string;
+    types: ChannelType[];
+    isAvailable: boolean;
+    isFree: boolean;
+    isUsing: boolean;
+    isFault: boolean;
+    users: TunerStatusUser[];
+}
+
+/**
  * バージョン情報
  */
 export interface VersionInfo {
