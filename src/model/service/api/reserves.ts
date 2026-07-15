@@ -83,6 +83,16 @@ export const post: Operation = async (req, res) => {
             reserveId: await reserveApiModel.add(req.body),
         });
     } catch (err: any) {
+        if (err.message === 'ReservationManageModelAddReserveConflict') {
+            // tuner 競合による予約失敗は 409 で返し, client 側で原因を提示できるようにする
+            api.responseJSON(res, 409, {
+                code: 409,
+                message: 'Conflict',
+                errors: 'ReservationConflict',
+            });
+
+            return;
+        }
         api.responseServerError(res, err.message);
     }
 };
@@ -108,6 +118,16 @@ post.apiDoc = {
                 'application/json': {
                     schema: {
                         $ref: '#/components/schemas/AddedReserve',
+                    },
+                },
+            },
+        },
+        409: {
+            description: 'チューナー競合のため予約を追加できなかった',
+            content: {
+                'application/json': {
+                    schema: {
+                        $ref: '#/components/schemas/Error',
                     },
                 },
             },

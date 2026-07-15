@@ -57,10 +57,12 @@
                 </div>
             </v-card>
         </v-dialog>
+        <ReserveConflictDialog :isOpen.sync="isOpenConflictDialog" :startAt="conflictStartAt" :endAt="conflictEndAt" :channelId="conflictChannelId"></ReserveConflictDialog>
     </div>
 </template>
 
 <script lang="ts">
+import ReserveConflictDialog from '@/components/reserves/ReserveConflictDialog.vue';
 import container from '@/model/ModelContainer';
 import IGuideProgramDialogState from '@/model/state/guide/IGuideProgramDialogState';
 import ISnackbarState from '@/model/state/snackbar/ISnackbarState';
@@ -70,12 +72,20 @@ import StrUtil from '@/util/StrUtil';
 import Util from '@/util/Util';
 import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
 
-@Component({})
+@Component({
+    components: {
+        ReserveConflictDialog,
+    },
+})
 export default class ProgramDialog extends Vue {
     public dialogState: IGuideProgramDialogState = container.get<IGuideProgramDialogState>('IGuideProgramDialogState');
     private setting: ISettingStorageModel = container.get<ISettingStorageModel>('ISettingStorageModel');
     private dialogSetting = container.get<IGuideProgramDialogSettingStorageModel>('IGuideProgramDialogSettingStorageModel');
     public isRemove: boolean = false;
+    public isOpenConflictDialog: boolean = false;
+    public conflictStartAt: number = 0;
+    public conflictEndAt: number = 0;
+    public conflictChannelId: number = 0;
 
     private snackbarState = container.get<ISnackbarState>('ISnackbarState');
 
@@ -199,7 +209,14 @@ export default class ProgramDialog extends Vue {
                 });
             }
         } catch (err) {
-            if (this.dialogState.displayData !== null) {
+            const program = this.dialogState.getProgram();
+            if (ProgramDialog.isConflictError(err) === true && program !== null) {
+                // チューナー競合による失敗は原因を dialog で提示する
+                this.conflictStartAt = program.startAt;
+                this.conflictEndAt = program.endAt;
+                this.conflictChannelId = program.channelId;
+                this.isOpenConflictDialog = true;
+            } else if (this.dialogState.displayData !== null) {
                 this.snackbarState.open({
                     color: 'error',
                     text: `${this.dialogState.displayData.programName} 予約失敗`,
@@ -207,6 +224,15 @@ export default class ProgramDialog extends Vue {
             }
         }
         this.dialogState.isOpen = false;
+    }
+
+    /**
+     * チューナー競合による予約失敗 (HTTP 409) か判定する
+     * @param err: any
+     * @return boolean
+     */
+    private static isConflictError(err: any): boolean {
+        return typeof err !== 'undefined' && err !== null && typeof err.response !== 'undefined' && err.response.status === 409;
     }
 
     /**

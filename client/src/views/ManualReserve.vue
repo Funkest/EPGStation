@@ -8,6 +8,7 @@
                 <ManualTimeReserveOption v-else :isEditMode="isEditMode"></ManualTimeReserveOption>
                 <div class="pt-2"></div>
                 <ManualReserveOptionComponent :isEditMode="isEditMode" v-on:cancel="cancel" v-on:add="add" v-on:update="update"></ManualReserveOptionComponent>
+                <ReserveConflictDialog :isOpen.sync="isOpenConflictDialog" :startAt="conflictStartAt" :endAt="conflictEndAt" :channelId="conflictChannelId"></ReserveConflictDialog>
             </div>
         </transition>
     </v-main>
@@ -17,6 +18,7 @@
 import ManualReserveOptionComponent from '@/components/manualReserve/ManualReserveOption.vue';
 import ManualReserveProgramInfo from '@/components/manualReserve/ManualReserveProgramInfo.vue';
 import ManualTimeReserveOption from '@/components/manualReserve/ManualTimeReserveOption.vue';
+import ReserveConflictDialog from '@/components/reserves/ReserveConflictDialog.vue';
 import TitleBar from '@/components/titleBar/TitleBar.vue';
 import container from '@/model/ModelContainer';
 import ISocketIOModel from '@/model/socketio/ISocketIOModel';
@@ -46,10 +48,15 @@ Component.registerHooks(['beforeRouteUpdate', 'beforeRouteLeave']);
         ManualReserveProgramInfo,
         ManualTimeReserveOption,
         ManualReserveOptionComponent,
+        ReserveConflictDialog,
     },
 })
 export default class ManualReserve extends Vue {
     public isEditMode: boolean = false;
+    public isOpenConflictDialog: boolean = false;
+    public conflictStartAt: number = 0;
+    public conflictEndAt: number = 0;
+    public conflictChannelId: number = 0;
 
     private manualReserveState: IManualReserveState = container.get<IManualReserveState>('IManualReserveState');
     private scrollState: IScrollPositionState = container.get<IScrollPositionState>('IScrollPositionState');
@@ -95,16 +102,64 @@ export default class ManualReserve extends Vue {
                 text: '予約を追加しました。',
             });
         } catch (err) {
-            this.snackbarState.open({
-                color: 'error',
-                text: '予約の追加に失敗しました。',
-            });
+            const conflictParams = ManualReserve.isConflictError(err) === true ? this.getConflictDialogParams() : null;
+            if (conflictParams !== null) {
+                // チューナー競合による失敗は原因を dialog で提示する
+                this.conflictStartAt = conflictParams.startAt;
+                this.conflictEndAt = conflictParams.endAt;
+                this.conflictChannelId = conflictParams.channelId;
+                this.isOpenConflictDialog = true;
+            } else {
+                this.snackbarState.open({
+                    color: 'error',
+                    text: '予約の追加に失敗しました。',
+                });
+            }
 
             return;
         }
 
         await Util.sleep(800);
         this.$router.back();
+    }
+
+    /**
+     * チューナー競合による予約失敗 (HTTP 409) か判定する
+     * @param err: any
+     * @return boolean
+     */
+    private static isConflictError(err: any): boolean {
+        return typeof err !== 'undefined' && err !== null && typeof err.response !== 'undefined' && err.response.status === 409;
+    }
+
+    /**
+     * 競合 dialog 用の時間帯・チャンネル情報を予約内容から取り出す
+     * @return { startAt, endAt, channelId } | null 取り出せない場合は null
+     */
+    private getConflictDialogParams(): { startAt: number; endAt: number; channelId: number } | null {
+        if (this.manualReserveState.isTimeSpecification === true) {
+            const option = this.manualReserveState.timeSpecifiedOption;
+            if (option.channelId === null || option.startAt === null || option.endAt === null) {
+                return null;
+            }
+
+            return {
+                startAt: option.startAt.getTime(),
+                endAt: option.endAt.getTime(),
+                channelId: option.channelId,
+            };
+        }
+
+        const programInfo = this.manualReserveState.getProgramInfo();
+        if (programInfo === null) {
+            return null;
+        }
+
+        return {
+            startAt: programInfo.programItem.startAt,
+            endAt: programInfo.programItem.endAt,
+            channelId: programInfo.programItem.channelId,
+        };
     }
 
     /**
