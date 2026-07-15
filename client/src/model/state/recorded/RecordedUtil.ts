@@ -10,6 +10,9 @@ import IRecordedUtil, { RecordedDisplayData } from './IRecordedUtil';
 // 録画失敗を表す RecordedItem.endStatus の値 (server 側 RecordedEndStatus.FAILED)
 const END_STATUS_FAILED: apid.RecordedEndStatus = 2;
 
+// 録画中断を表す RecordedItem.endStatus の値 (server 側 RecordedEndStatus.ABORTED)
+const END_STATUS_ABORTED: apid.RecordedEndStatus = 3;
+
 // RecordedItem.failReason (server 側 RecordedFailReason) の表示文字列. 0 (不明) は表示しない
 const FAIL_REASON_TEXT: { [key: number]: string } = {
     1: 'チューナー不足',
@@ -45,6 +48,7 @@ export default class RecordedUtil implements IRecordedUtil {
                 videoFiles: item.videoFiles,
                 hasDrop: false,
                 isFailed: item.endStatus === END_STATUS_FAILED,
+                isAborted: item.endStatus === END_STATUS_ABORTED,
             },
             recordedItem: item,
             isSelected: false,

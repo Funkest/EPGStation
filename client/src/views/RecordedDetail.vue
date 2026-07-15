@@ -27,6 +27,7 @@
                         <div class="content-description">
                             <div class="title font-weight-bold">
                                 <v-chip v-if="recorded.display.isFailed === true" class="mr-1" label small color="error">失敗</v-chip>
+                                <v-chip v-else-if="recorded.display.isAborted === true" class="mr-1" label small color="warning">中断</v-chip>
                                 {{ recorded.display.name }}
                             </div>
                             <div v-if="typeof recorded.display.failReasonText !== 'undefined'" class="subtitle-2 font-weight-bold error--text">

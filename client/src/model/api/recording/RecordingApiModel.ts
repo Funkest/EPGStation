@@ -23,4 +23,13 @@ export default class RecordingApiModel implements IRecordingApiModel {
 
         return result.data;
     }
+
+    /**
+     * 録画中断 (録画ファイルを残して停止する)
+     * @param recordedId: apid.RecordedId
+     * @return Promise<void>
+     */
+    public async stop(recordedId: apid.RecordedId): Promise<void> {
+        await this.repository.put(`/recording/${recordedId}/stop`);
+    }
 }

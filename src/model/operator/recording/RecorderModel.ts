@@ -61,6 +61,7 @@ class RecorderModel implements IRecorderModel {
     private isPrepRecording: boolean = false;
     private isRecording: boolean = false;
     private isPlanToDelete: boolean = false;
+    private isAborted: boolean = false; // 明示的な録画中断 (録画 file を残して停止) が要求されたか
     private isCanceledCallingFinished: boolean = false; // mirakurun の stream の終了検知をキャンセルするか
     private eventEmitter = new events.EventEmitter();
 
@@ -550,7 +551,7 @@ class RecorderModel implements IRecorderModel {
             this.log.system.error(e);
         });
 
-        // 録画終了処理失敗を通知
+        // 録画 file が空 (0 byte or 欠損) なら録画情報を削除する (空の録画 entry の抑止)
         let recorded: Recorded | null = null;
         let isRemovedEmptyRecorded = false;
         if (this.recordedId !== null) {
@@ -561,7 +562,6 @@ class RecorderModel implements IRecorderModel {
                 recorded = null;
             }
 
-            // 録画 file が空 (0 byte or 欠損) なら録画情報を削除する (空の録画 entry の抑止)
             if (recorded !== null) {
                 isRemovedEmptyRecorded = await this.recordingUtil.removeEmptyRecorded(recorded).catch(e => {
                     this.log.system.error(`remove empty recorded error: ${this.recordedId}`);
@@ -574,6 +574,13 @@ class RecorderModel implements IRecorderModel {
                 }
             }
         }
+
+        // 明示的な録画中断による停止は失敗ではないため, 失敗通知 (再設定・失敗コマンド実行) を行わない
+        if (this.isAborted === true) {
+            return;
+        }
+
+        // 録画終了処理失敗を通知
         this.recordingEvent.emitRecordingFailed(this.reserve, recorded, isRemovedEmptyRecorded);
     }
 
@@ -665,6 +672,12 @@ class RecorderModel implements IRecorderModel {
      * @param endStatus: RecordedEndStatus 録画終了時の状態
      */
     private async recEnd(endStatus: RecordedEndStatus): Promise<void> {
+        // 明示的な録画中断が要求されていた場合は中断として記録する
+        // (stream の終了が正常・異常どちらの経路で検知されても中断を優先する)
+        if (this.isAborted === true) {
+            endStatus = RecordedEndStatus.ABORTED;
+        }
+
         this.log.system.info(`start recEnd reserveId: ${this.reserve.id} recordedId: ${this.recordedId}`);
 
         // stream 停止
@@ -856,6 +869,15 @@ class RecorderModel implements IRecorderModel {
                 this.stream.push(null); // eof 通知
             }
         }
+    }
+
+    /**
+     * 録画中断 flag を立てる (録画中断機能)
+     * 以降の録画終了処理で endStatus が ABORTED として記録される
+     */
+    public markAbort(): void {
+        this.log.system.info(`mark abort: reserveId: ${this.reserve.id}, recordedId: ${this.recordedId}`);
+        this.isAborted = true;
     }
 
     /**

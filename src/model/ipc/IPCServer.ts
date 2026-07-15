@@ -342,6 +342,16 @@ export default class IPCServer implements IIPCServer {
             this.recordingManage.resetTimer();
         };
 
+        // stop (録画中断: 録画 file を残して停止する)
+        index[RecordingFunctions.stop] = async msg => {
+            const recordedId = this.getArgsValue<apid.RecordedId>(msg, 'recordedId');
+
+            // 中断 flag を立ててから予約 cancel の連鎖で録画を停止させる
+            // (isPlanToDelete=false で停止するため録画 file は残る)
+            const reserveId = await this.recordingManage.markAbort(recordedId);
+            await this.reservationManage.cancel(reserveId);
+        };
+
         return index;
     }
 

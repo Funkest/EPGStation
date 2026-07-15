@@ -12,6 +12,7 @@
         <div v-on:click="gotoDetail" class="content pa-2 my-auto">
             <div class="d-flex align-center">
                 <v-chip v-if="item.display.isFailed === true" class="mt-1 mr-1 flex-shrink-0" label x-small color="error">失敗</v-chip>
+                <v-chip v-else-if="item.display.isAborted === true" class="mt-1 mr-1 flex-shrink-0" label x-small color="warning">中断</v-chip>
                 <div class="text mt-1 subtitle-2 font-weight-bold">{{ item.display.name }}</div>
                 <div v-if="isEditMode === false" class="menu-wrap">
                     <RecordedItemMenu :recordedItem="item.recordedItem" v-on:stopEncode="stopEncode"></RecordedItemMenu>

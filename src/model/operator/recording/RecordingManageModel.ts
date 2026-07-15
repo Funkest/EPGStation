@@ -330,6 +330,29 @@ class RecordingManageModel implements IRecordingManageModel {
     }
 
     /**
+     * 指定された recorded id の録画中 recorder へ中断 flag を立てる (録画中断機能)
+     * 実際の停止は呼び出し元が予約 cancel の連鎖で行う
+     * @param recordedId: apid.RecordedId
+     * @return Promise<apid.ReserveId> 中断対象の予約 id
+     */
+    public async markAbort(recordedId: apid.RecordedId): Promise<apid.ReserveId> {
+        const recorded = await this.recordedDB.findId(recordedId);
+        if (recorded === null || recorded.isRecording === false || recorded.reserveId === null) {
+            throw new Error('RecordingIsNotFound');
+        }
+
+        const recorder = this.recordingIndex[recorded.reserveId];
+        if (typeof recorder === 'undefined') {
+            throw new Error('RecorderIsNotFound');
+        }
+
+        this.log.system.info(`mark abort recording: reserveId: ${recorded.reserveId}, recordedId: ${recordedId}`);
+        recorder.markAbort();
+
+        return recorded.reserveId;
+    }
+
+    /**
      * タイマーを再設定する
      */
     public resetTimer(): void {
